@@ -14,6 +14,9 @@ jobs:
   android-web:
     name: Android and Web
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -59,14 +62,28 @@ jobs:
       - name: Prepare Pages content
         shell: bash
         run: |
-          mkdir -p pages/lab9-task1-weather-cmp
-          if [ -d composeApp/build/dist/wasmJs/productionExecutable ]; then
-            cp -R composeApp/build/dist/wasmJs/productionExecutable/. pages/lab9-task1-weather-cmp/
-          elif [ -d composeApp/build/dist/wasmJs/developmentExecutable ]; then
-            cp -R composeApp/build/dist/wasmJs/developmentExecutable/. pages/lab9-task1-weather-cmp/
-          else
-            echo "<html><body><h1>task1_weather_cmp</h1><p>Wasm output was not produced.</p></body></html>" > pages/lab9-task1-weather-cmp/index.html
+          mkdir -p pages
+          echo "Searching for Wasm index.html:"
+          find composeApp/build -path '*wasmJs*' -name index.html -print
+          wasm_index="$(find composeApp/build -path '*wasmJs*' -name index.html | head -n 1)"
+          if [ -z "$wasm_index" ]; then
+            echo "ERROR: Wasm index.html was not found under composeApp/build. GitHub Pages artifact cannot be prepared." >&2
+            exit 1
           fi
+          wasm_dir="$(dirname "$wasm_index")"
+          echo "Copying Pages content from: $wasm_dir"
+          cp -R "$wasm_dir"/. pages/
+
+      - name: Verify Pages publish directory
+        shell: bash
+        run: |
+          pwd
+          echo "Pages publish directory:"
+          find pages -maxdepth 2 -type f -print
+          test -f pages/index.html || {
+            echo "ERROR: pages/index.html is missing. The Pages artifact root must contain index.html." >&2
+            exit 1
+          }
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
@@ -79,7 +96,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: task1-weather-web-wasm
-          path: pages/lab9-task1-weather-cmp/**
+          path: pages/**
           if-no-files-found: error
 
       - name: Upload test reports
@@ -103,8 +120,13 @@ jobs:
           path: pages
 
       - name: Deploy Pages
+        id: deployment
         if: github.event_name != 'pull_request'
         uses: actions/deploy-pages@v4
+
+      - name: Print Pages URL
+        if: github.event_name != 'pull_request'
+        run: echo "Published Pages URL: ${{ steps.deployment.outputs.page_url }}"
 
   windows-desktop:
     name: Windows Desktop runnable artifact
