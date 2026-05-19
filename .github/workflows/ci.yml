@@ -31,6 +31,12 @@ jobs:
       - name: Run desktop tests
         run: ./gradlew :composeApp:desktopTest --stacktrace
 
+      - name: Print test results
+        if: always()
+        run: |
+          find composeApp/build/test-results -name "*.xml" -print || true
+          grep -R "<testsuite" composeApp/build/test-results || true
+
       - name: Build Android APK
         run: ./gradlew :composeApp:assembleDebug --stacktrace
 
@@ -79,6 +85,16 @@ jobs:
           path: |
             composeApp/build/dist/wasmJs/**
             composeApp/build/processedResources/wasmJs/**
+          if-no-files-found: ignore
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: task1-weather-test-reports
+          path: |
+            composeApp/build/reports/tests/**
+            composeApp/build/test-results/**
           if-no-files-found: ignore
 
   ios-check:
