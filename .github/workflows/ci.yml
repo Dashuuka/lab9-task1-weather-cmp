@@ -1,0 +1,122 @@
+name: task1_weather_cmp CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  desktop-android-web:
+    name: Desktop, Android and Web
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Print tool versions
+        run: |
+          java -version
+          ./gradlew --version
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Run desktop tests
+        run: ./gradlew :composeApp:desktopTest --stacktrace
+
+      - name: Build Android APK
+        run: ./gradlew :composeApp:assembleDebug --stacktrace
+
+      - name: Build Desktop distribution if task exists
+        shell: bash
+        run: |
+          if ./gradlew tasks --all | grep -q "packageDistributionForCurrentOS"; then
+            ./gradlew :composeApp:packageDistributionForCurrentOS --stacktrace
+          elif ./gradlew tasks --all | grep -q "desktopJar"; then
+            ./gradlew :composeApp:desktopJar --stacktrace
+          else
+            echo "No Desktop packaging task found, skipping."
+          fi
+
+      - name: Build Web/Wasm if task exists
+        shell: bash
+        run: |
+          if ./gradlew tasks --all | grep -q "wasmJsBrowserDistribution"; then
+            ./gradlew :composeApp:wasmJsBrowserDistribution --stacktrace
+          elif ./gradlew tasks --all | grep -q "wasmJsBrowserProductionWebpack"; then
+            ./gradlew :composeApp:wasmJsBrowserProductionWebpack --stacktrace
+          else
+            echo "No Web/Wasm build task found, skipping."
+          fi
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: task1-weather-android-apk
+          path: composeApp/build/outputs/apk/**/*.apk
+          if-no-files-found: ignore
+
+      - name: Upload Desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: task1-weather-desktop
+          path: |
+            composeApp/build/compose/binaries/**
+            composeApp/build/libs/**/*.jar
+          if-no-files-found: ignore
+
+      - name: Upload Web/Wasm artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: task1-weather-web-wasm
+          path: |
+            composeApp/build/dist/wasmJs/**
+            composeApp/build/processedResources/wasmJs/**
+          if-no-files-found: ignore
+
+  ios-check:
+    name: iOS check on macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Print tool versions
+        run: |
+          java -version
+          ./gradlew --version
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build/check iOS target if task exists
+        shell: bash
+        run: |
+          if ./gradlew tasks --all | grep -q "compileKotlinIosSimulatorArm64"; then
+            ./gradlew :composeApp:compileKotlinIosSimulatorArm64 --stacktrace
+          elif ./gradlew tasks --all | grep -q "iosSimulatorArm64Binaries"; then
+            ./gradlew :composeApp:iosSimulatorArm64Binaries --stacktrace
+          else
+            echo "No suitable iOS Gradle task found, skipping."
+          fi
+
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: task1-weather-ios
+          path: composeApp/build/bin/ios*/**
+          if-no-files-found: ignore
