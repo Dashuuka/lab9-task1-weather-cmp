@@ -126,7 +126,8 @@ jobs:
 
       - name: Print Pages URL
         if: github.event_name != 'pull_request'
-        run: echo "Published Pages URL: ${{ steps.deployment.outputs.page_url }}"
+        run: |
+          echo "Published Pages URL: ${{ steps.deployment.outputs.page_url }}"
 
   windows-desktop:
     name: Windows Desktop runnable artifact
