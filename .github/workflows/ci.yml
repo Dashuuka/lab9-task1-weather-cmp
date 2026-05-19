@@ -20,13 +20,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
       - name: Print tool versions
         run: |
           java -version
           ./gradlew --version
-
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
 
       - name: Run desktop tests
         run: ./gradlew :composeApp:desktopTest --stacktrace
@@ -95,13 +95,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
       - name: Print tool versions
         run: |
           java -version
           ./gradlew --version
-
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
 
       - name: Build/check iOS target if task exists
         shell: bash
