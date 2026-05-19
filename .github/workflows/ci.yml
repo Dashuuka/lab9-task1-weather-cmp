@@ -5,9 +5,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
-  desktop-android-web:
-    name: Desktop, Android and Web
+  android-web:
+    name: Android and Web
     runs-on: ubuntu-latest
 
     steps:
@@ -40,17 +45,6 @@ jobs:
       - name: Build Android APK
         run: ./gradlew :composeApp:assembleDebug --stacktrace
 
-      - name: Build Desktop distribution if task exists
-        shell: bash
-        run: |
-          if ./gradlew tasks --all | grep -q "packageDistributionForCurrentOS"; then
-            ./gradlew :composeApp:packageDistributionForCurrentOS --stacktrace
-          elif ./gradlew tasks --all | grep -q "desktopJar"; then
-            ./gradlew :composeApp:desktopJar --stacktrace
-          else
-            echo "No Desktop packaging task found, skipping."
-          fi
-
       - name: Build Web/Wasm if task exists
         shell: bash
         run: |
@@ -62,30 +56,31 @@ jobs:
             echo "No Web/Wasm build task found, skipping."
           fi
 
+      - name: Prepare Pages content
+        shell: bash
+        run: |
+          mkdir -p pages/lab9-task1-weather-cmp
+          if [ -d composeApp/build/dist/wasmJs/productionExecutable ]; then
+            cp -R composeApp/build/dist/wasmJs/productionExecutable/. pages/lab9-task1-weather-cmp/
+          elif [ -d composeApp/build/dist/wasmJs/developmentExecutable ]; then
+            cp -R composeApp/build/dist/wasmJs/developmentExecutable/. pages/lab9-task1-weather-cmp/
+          else
+            echo "<html><body><h1>task1_weather_cmp</h1><p>Wasm output was not produced.</p></body></html>" > pages/lab9-task1-weather-cmp/index.html
+          fi
+
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
           name: task1-weather-android-apk
           path: composeApp/build/outputs/apk/**/*.apk
-          if-no-files-found: ignore
+          if-no-files-found: error
 
-      - name: Upload Desktop artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: task1-weather-desktop
-          path: |
-            composeApp/build/compose/binaries/**
-            composeApp/build/libs/**/*.jar
-          if-no-files-found: ignore
-
-      - name: Upload Web/Wasm artifacts
+      - name: Upload Web/Wasm artifact
         uses: actions/upload-artifact@v4
         with:
           name: task1-weather-web-wasm
-          path: |
-            composeApp/build/dist/wasmJs/**
-            composeApp/build/processedResources/wasmJs/**
-          if-no-files-found: ignore
+          path: pages/lab9-task1-weather-cmp/**
+          if-no-files-found: error
 
       - name: Upload test reports
         if: always()
@@ -97,8 +92,65 @@ jobs:
             composeApp/build/test-results/**
           if-no-files-found: ignore
 
-  ios-check:
-    name: iOS check on macOS
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages
+
+      - name: Deploy Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/deploy-pages@v4
+
+  windows-desktop:
+    name: Windows Desktop runnable artifact
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Print tool versions
+        shell: pwsh
+        run: |
+          java -version
+          .\gradlew.bat --version
+
+      - name: Build runnable Windows Desktop artifact
+        shell: pwsh
+        run: |
+          $tasks = .\gradlew.bat tasks --all
+          if ($tasks -match "packageUberJarForCurrentOS") {
+            .\gradlew.bat :composeApp:packageUberJarForCurrentOS --stacktrace
+          } elseif ($tasks -match "createDistributable") {
+            .\gradlew.bat :composeApp:createDistributable --stacktrace
+          } elseif ($tasks -match "packageDistributionForCurrentOS") {
+            .\gradlew.bat :composeApp:packageDistributionForCurrentOS --stacktrace
+          } else {
+            throw "No runnable Desktop packaging task found."
+          }
+
+      - name: Upload Windows Desktop runnable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: task1-weather-desktop-windows-runnable
+          path: |
+            composeApp/build/compose/jars/**/*.jar
+            composeApp/build/compose/binaries/**
+          if-no-files-found: error
+
+  ios-framework-check:
+    name: iOS framework/compile check on macOS
     runs-on: macos-latest
 
     steps:
@@ -118,21 +170,23 @@ jobs:
         run: |
           java -version
           ./gradlew --version
+          xcodebuild -version
 
-      - name: Build/check iOS target if task exists
+      - name: Build iOS simulator framework or compile target
         shell: bash
         run: |
-          if ./gradlew tasks --all | grep -q "compileKotlinIosSimulatorArm64"; then
+          if ./gradlew tasks --all | grep -q "linkDebugFrameworkIosSimulatorArm64"; then
+            ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64 --stacktrace
+          elif ./gradlew tasks --all | grep -q "compileKotlinIosSimulatorArm64"; then
             ./gradlew :composeApp:compileKotlinIosSimulatorArm64 --stacktrace
-          elif ./gradlew tasks --all | grep -q "iosSimulatorArm64Binaries"; then
-            ./gradlew :composeApp:iosSimulatorArm64Binaries --stacktrace
           else
-            echo "No suitable iOS Gradle task found, skipping."
+            echo "No suitable iOS framework/check Gradle task found." >&2
+            exit 1
           fi
 
-      - name: Upload iOS artifacts
+      - name: Upload iOS framework/check artifact
         uses: actions/upload-artifact@v4
         with:
-          name: task1-weather-ios
+          name: task1-weather-ios-framework-check
           path: composeApp/build/bin/ios*/**
-          if-no-files-found: ignore
+          if-no-files-found: error

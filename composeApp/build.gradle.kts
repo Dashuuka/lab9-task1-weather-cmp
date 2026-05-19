@@ -87,3 +87,9 @@ android {
         versionName = "1.0"
     }
 }
+
+compose.desktop {
+    application {
+        mainClass = "lab9.weather.MainKt"
+    }
+}
