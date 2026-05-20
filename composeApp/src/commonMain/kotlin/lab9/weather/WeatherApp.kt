@@ -148,6 +148,8 @@ fun validateCity(city: String): String {
 
 fun formatTemperature(value: Double): String = "${value.roundToInt()} C"
 
+fun weatherCardTitle(weather: Weather): String = weather.city
+
 fun weatherGridColumnsForWidth(widthDp: Float): Int = when {
     widthDp < 600f -> 1
     widthDp < 1000f -> 2
@@ -292,7 +294,7 @@ fun WeatherApp(repository: WeatherRepository = remember { WeatherRepository() })
 fun WeatherCard(weather: Weather, s: Map<String, String>) {
     Card {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${weather.city} ${weather.icon}", style = MaterialTheme.typography.titleLarge)
+            Text(weatherCardTitle(weather), style = MaterialTheme.typography.titleLarge)
             Text("${s.getValue("temp")}: ${formatTemperature(weather.temperatureC)}")
             Text(weather.description)
             Text("${s.getValue("humidity")}: ${weather.humidity}%")

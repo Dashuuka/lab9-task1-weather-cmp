@@ -27,6 +27,12 @@ class WeatherTests {
     }
 
     @Test
+    fun cardTitleDoesNotShowOpenWeatherIconCode() {
+        val weather = Weather("Minsk", 18.0, "clear", "01d", 55, 3.0)
+        assertEquals("Minsk", weatherCardTitle(weather))
+    }
+
+    @Test
     fun savesAndReadsCache() {
         val cache = WeatherCache()
         cache.save(Weather("Minsk", 10.0, "rain", "10d", 90, 5.0))
