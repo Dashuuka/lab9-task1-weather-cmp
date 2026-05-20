@@ -36,8 +36,8 @@ jobs:
           java -version
           ./gradlew --version
 
-      - name: Run desktop tests
-        run: ./gradlew :composeApp:desktopTest --stacktrace
+      - name: Run all available tests
+        run: ./gradlew :composeApp:allTests :composeApp:testDebugUnitTest :composeApp:wasmJsTest --stacktrace
 
       - name: Print test results
         if: always()
@@ -184,8 +184,8 @@ jobs:
             composeApp/build/compose/binaries/**
           if-no-files-found: error
 
-  ios-framework-check:
-    name: iOS framework/compile check on macOS
+  ios-simulator:
+    name: iOS simulator app
     runs-on: macos-latest
 
     steps:
@@ -207,21 +207,37 @@ jobs:
           ./gradlew --version
           xcodebuild -version
 
-      - name: Build iOS simulator framework or compile target
+      - name: Build iOS simulator app
         shell: bash
         run: |
-          if ./gradlew tasks --all | grep -q "linkDebugFrameworkIosSimulatorArm64"; then
-            ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64 --stacktrace
-          elif ./gradlew tasks --all | grep -q "compileKotlinIosSimulatorArm64"; then
-            ./gradlew :composeApp:compileKotlinIosSimulatorArm64 --stacktrace
-          else
-            echo "No suitable iOS framework/check Gradle task found." >&2
+          xcodebuild \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -derivedDataPath iosApp/build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Stage iOS simulator .app
+        shell: bash
+        run: |
+          mkdir -p ios-artifact
+          APP_PATH="$(find iosApp/build/Build/Products -path '*iphonesimulator/*.app' -type d | head -n 1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: no .app folder found in Xcode build output." >&2
+            find iosApp/build -maxdepth 6 -print || true
             exit 1
           fi
+          cp -R "$APP_PATH" ios-artifact/
+          echo "Staged iOS app:"
+          find ios-artifact -maxdepth 3 -print
+          test -d ios-artifact/*.app
 
-      - name: Upload iOS framework/check artifact
+      - name: Upload iOS simulator app artifact
         uses: actions/upload-artifact@v4
         with:
-          name: task1-weather-ios-framework-check
-          path: composeApp/build/bin/ios*/**
+          name: task1-weather-ios-simulator-app
+          path: ios-artifact/**
           if-no-files-found: error
