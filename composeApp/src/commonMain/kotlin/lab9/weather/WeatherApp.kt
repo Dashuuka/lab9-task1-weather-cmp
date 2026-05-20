@@ -1,12 +1,16 @@
 package lab9.weather
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -144,6 +148,12 @@ fun validateCity(city: String): String {
 
 fun formatTemperature(value: Double): String = "${value.roundToInt()} C"
 
+fun weatherGridColumnsForWidth(widthDp: Float): Int = when {
+    widthDp < 600f -> 1
+    widthDp < 1000f -> 2
+    else -> 3
+}
+
 @Serializable
 data class OpenWeatherDto(
     val name: String,
@@ -223,48 +233,55 @@ fun WeatherApp(repository: WeatherRepository = remember { WeatherRepository() })
 
     MaterialTheme {
         Surface {
-            LazyColumn(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                item {
-                    Text(s.getValue("title"), style = MaterialTheme.typography.headlineMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { lang = Lang.Ru }) { Text("RU") }
-                        Button(onClick = { lang = Lang.En }) { Text("EN") }
-                        Button(onClick = { lang = Lang.Be }) { Text("BE") }
-                    }
-                }
-                item {
-                    Card {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(city, { city = it }, label = { Text(s.getValue("city")) }, modifier = Modifier.fillMaxWidth())
-                            OutlinedTextField(apiKey, { apiKey = it }, label = { Text(s.getValue("api")) }, modifier = Modifier.fillMaxWidth())
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val columnCount = weatherGridColumnsForWidth(maxWidth.value)
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columnCount),
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    item(span = { GridItemSpan(columnCount) }) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(s.getValue("title"), style = MaterialTheme.typography.headlineMedium)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(s.getValue("demo"))
-                                Switch(demoMode, { demoMode = it })
-                                Button(onClick = {
-                                    loading = true
-                                    error = null
-                                    scope.launch {
-                                        try {
-                                            results.add(0, repository.search(city, apiKey, demoMode))
-                                        } catch (e: Exception) {
-                                            error = s[e.message] ?: e.message ?: "Error"
-                                            println("[WeatherUi] ${e.message}")
-                                        } finally {
-                                            loading = false
-                                        }
-                                    }
-                                }) { Text(s.getValue("search")) }
+                                Button(onClick = { lang = Lang.Ru }) { Text("RU") }
+                                Button(onClick = { lang = Lang.En }) { Text("EN") }
+                                Button(onClick = { lang = Lang.Be }) { Text("BE") }
                             }
-                            if (loading) CircularProgressIndicator()
-                            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         }
                     }
-                }
-                items(results) { weather ->
-                    WeatherCard(weather, s)
+                    item(span = { GridItemSpan(columnCount) }) {
+                        Card {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(city, { city = it }, label = { Text(s.getValue("city")) }, modifier = Modifier.fillMaxWidth())
+                                OutlinedTextField(apiKey, { apiKey = it }, label = { Text(s.getValue("api")) }, modifier = Modifier.fillMaxWidth())
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(s.getValue("demo"))
+                                    Switch(demoMode, { demoMode = it })
+                                    Button(onClick = {
+                                        loading = true
+                                        error = null
+                                        scope.launch {
+                                            try {
+                                                results.add(0, repository.search(city, apiKey, demoMode))
+                                            } catch (e: Exception) {
+                                                error = s[e.message] ?: e.message ?: "Error"
+                                                println("[WeatherUi] ${e.message}")
+                                            } finally {
+                                                loading = false
+                                            }
+                                        }
+                                    }) { Text(s.getValue("search")) }
+                                }
+                                if (loading) CircularProgressIndicator()
+                                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                            }
+                        }
+                    }
+                    items(results) { weather ->
+                        WeatherCard(weather, s)
+                    }
                 }
             }
         }

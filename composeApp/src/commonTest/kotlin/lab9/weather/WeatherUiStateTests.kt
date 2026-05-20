@@ -30,4 +30,11 @@ class WeatherUiStateTests {
         assertEquals("Minsk", state.items.first().city)
         assertNull(state.error)
     }
+
+    @Test
+    fun webGridUsesOneTwoThreeColumnsByBreakpoint() {
+        assertEquals(1, weatherGridColumnsForWidth(360f))
+        assertEquals(2, weatherGridColumnsForWidth(800f))
+        assertEquals(3, weatherGridColumnsForWidth(1280f))
+    }
 }
