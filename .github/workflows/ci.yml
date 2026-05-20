@@ -48,31 +48,43 @@ jobs:
       - name: Build Android APK
         run: ./gradlew :composeApp:assembleDebug --stacktrace
 
-      - name: Build Web/Wasm if task exists
+      - name: List Web/Wasm Gradle tasks
+        shell: bash
+        run: ./gradlew :composeApp:tasks --all | grep -Ei "wasm|js|browser|distribution|webpack" || true
+
+      - name: Build Web/Wasm
         shell: bash
         run: |
-          if ./gradlew tasks --all | grep -q "wasmJsBrowserDistribution"; then
+          if ./gradlew :composeApp:tasks --all | grep -q "wasmJsBrowserDistribution"; then
             ./gradlew :composeApp:wasmJsBrowserDistribution --stacktrace
-          elif ./gradlew tasks --all | grep -q "wasmJsBrowserProductionWebpack"; then
-            ./gradlew :composeApp:wasmJsBrowserProductionWebpack --stacktrace
+          elif ./gradlew :composeApp:tasks --all | grep -q "jsBrowserDistribution"; then
+            ./gradlew :composeApp:jsBrowserDistribution --stacktrace
           else
-            echo "No Web/Wasm build task found, skipping."
+            echo "ERROR: neither wasmJsBrowserDistribution nor jsBrowserDistribution exists." >&2
+            exit 1
           fi
 
       - name: Prepare Pages content
         shell: bash
         run: |
           mkdir -p pages
+          echo "All generated index.html files:"
+          find composeApp/build -name index.html -print
+          echo "First files under composeApp/build/dist:"
+          find composeApp/build/dist -maxdepth 6 -type f | sort | head -200 || true
           echo "Searching for Wasm index.html:"
           find composeApp/build -path '*wasmJs*' -name index.html -print
-          wasm_index="$(find composeApp/build -path '*wasmJs*' -name index.html | head -n 1)"
-          if [ -z "$wasm_index" ]; then
-            echo "ERROR: Wasm index.html was not found under composeApp/build. GitHub Pages artifact cannot be prepared." >&2
+          INDEX_FILE="$(find composeApp/build -path '*wasmJs*' -name index.html | head -n 1)"
+          if [ -z "$INDEX_FILE" ]; then
+            INDEX_FILE="$(find composeApp/build -path '*js*' -name index.html | head -n 1)"
+          fi
+          if [ -z "$INDEX_FILE" ]; then
+            echo "ERROR: Web/Wasm index.html was not found under composeApp/build. GitHub Pages artifact cannot be prepared." >&2
             exit 1
           fi
-          wasm_dir="$(dirname "$wasm_index")"
-          echo "Copying Pages content from: $wasm_dir"
-          cp -R "$wasm_dir"/. pages/
+          PUBLISH_SOURCE="$(dirname "$INDEX_FILE")"
+          echo "Copying Pages content from: $PUBLISH_SOURCE"
+          cp -R "$PUBLISH_SOURCE"/. pages/
 
       - name: Verify Pages publish directory
         shell: bash
